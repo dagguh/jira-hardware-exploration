@@ -7,9 +7,17 @@ import com.atlassian.performance.tools.aws.api.Aws
 import com.atlassian.performance.tools.aws.api.Investment
 import com.atlassian.performance.tools.aws.api.StorageLocation
 import com.atlassian.performance.tools.aws.api.TextCapacityMediator
+import com.atlassian.performance.tools.awsinfrastructure.S3DatasetPackage
+import com.atlassian.performance.tools.awsinfrastructure.api.CustomDatasetSource
 import com.atlassian.performance.tools.awsinfrastructure.api.DatasetCatalogue
+import com.atlassian.performance.tools.infrastructure.api.dataset.Dataset
+import com.atlassian.performance.tools.infrastructure.api.dataset.DatasetPackage
+import com.atlassian.performance.tools.infrastructure.api.dataset.FileArchiver
+import com.atlassian.performance.tools.infrastructure.api.dataset.HttpDatasetPackage
+import com.atlassian.performance.tools.infrastructure.api.jira.JiraHomePackage
 import com.atlassian.performance.tools.lib.LicenseOverridingDatabase
 import com.atlassian.performance.tools.lib.LogConfigurationFactory
+import com.atlassian.performance.tools.lib.infrastructure.PostgresDatabase
 import com.atlassian.performance.tools.lib.overrideDatabase
 import com.atlassian.performance.tools.lib.toExistingFile
 import com.atlassian.performance.tools.virtualusers.api.TemporalRate
@@ -89,7 +97,7 @@ class HardwareExplorationIT {
         HardwareExploration(
             scale = ApplicationScale(
                 description = "Jira L profile",
-                dataset = oneMillionIssues,
+                dataset = getDataset(),
                 load = VirtualUserLoad.Builder()
                     .virtualUsers(75)
                     .ramp(Duration.ofSeconds(90))
@@ -126,6 +134,36 @@ class HardwareExplorationIT {
             ),
             task = workspace
         ).exploreHardware()
+    }
+
+    fun getDataset(): Dataset {
+        val location = StorageLocation(
+            uri = URI("s3://jpt-custom-datasets-storage-a008820-datasetbucket-1sjxdtrv5hdhj/")
+                .resolve("a12fc4c5-3973-41f0-bf56-ede393677028"),
+            region = EU_WEST_1
+        )
+        val label = "1M issues"
+        val databaseDownload = Duration.ofMinutes(20)
+        val jiraHomeDownload = Duration.ofMinutes(20)
+        val archiver = FileArchiver()
+        return Dataset(
+            label = label,
+            database = PostgresDatabase(
+                source = HttpDatasetPackage(
+                    downloadPath = TODO(),
+                    unpackedPath = TODO(),
+                    downloadTimeout = databaseDownload
+                )
+            ),
+            jiraHomeSource = JiraHomePackage(
+                S3DatasetPackage( // TODO
+                    artifactName = archiver.zippedName(CustomDatasetSource.FileNames.JIRAHOME),
+                    location = location,
+                    unpackedPath = CustomDatasetSource.FileNames.JIRAHOME,
+                    downloadTimeout = jiraHomeDownload
+                )
+            )
+        )
     }
 
     companion object {
